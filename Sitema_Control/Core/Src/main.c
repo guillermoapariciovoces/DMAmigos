@@ -32,6 +32,11 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+//ESCLUSA Y ZUMBADOR
+//#define PUERTO_ESCLUSA GPIOC
+//#define PUERTO_ZUMBADOR GPIOC
+//#define PIN_ESCLUSA GPIO_PIN_7
+//#define PIN_ZUMBADOR GPIO_PIN_9
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -45,6 +50,8 @@ ADC_HandleTypeDef hadc2;
 DMA_HandleTypeDef hdma_adc1;
 DMA_HandleTypeDef hdma_adc2;
 
+TIM_HandleTypeDef htim9;
+
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -55,6 +62,7 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_ADC2_Init(void);
+static void MX_TIM9_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -129,6 +137,32 @@ void HAL_ADC_ConvCpltCallback (ADC_HandleTypeDef * hadc){
 	}
 }
 
+void activarEsclusa(int s)
+{
+	//"s" es el tiempo que está activo
+	__HAL_TIM_SET_COMPARE(&htim9, TIM_CHANNEL_2, s);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7,GPIO_PIN_SET);
+}
+
+void detenerEsclusa()
+{
+	__HAL_TIM_SET_COMPARE(&htim9, TIM_CHANNEL_2, 0);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7,GPIO_PIN_RESET);
+}
+
+void activarZumbador(int s)
+{
+	//"s" es el tiempo que está activo
+	__HAL_TIM_SET_COMPARE(&htim9, TIM_CHANNEL_2, s);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9,GPIO_PIN_SET);
+}
+
+void detenerZumbador()
+{
+	__HAL_TIM_SET_COMPARE(&htim9, TIM_CHANNEL_2, 0);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9,GPIO_PIN_RESET);
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -162,11 +196,13 @@ int main(void)
   MX_DMA_Init();
   MX_ADC1_Init();
   MX_ADC2_Init();
+  MX_TIM9_Init();
   /* USER CODE BEGIN 2 */
 
   HAL_ADC_Start_DMA(&hadc1, adcbuffer_pote, 2);	//Handle, buffer, tamaño del buffer
   HAL_ADC_Start_DMA(&hadc2, adcbuffer_nivel, 2);
 
+  HAL_TIM_PWM_Start(&htim9, TIM_CHANNEL_2);
 
   /* USER CODE END 2 */
 
@@ -174,6 +210,19 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
+	  //Código para probar la esclusa y el zumbador
+	    activarEsclusa(1000);
+	  	  HAL_Delay(1000);
+
+	  	detenerEsclusa();
+	  	  HAL_Delay(1000);
+
+	  	activarZumbador(2000);
+	  	  HAL_Delay(1000);
+
+	  	detenerZumbador();
+	  	  HAL_Delay(1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -369,6 +418,48 @@ static void MX_ADC2_Init(void)
 }
 
 /**
+  * @brief TIM9 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM9_Init(void)
+{
+
+  /* USER CODE BEGIN TIM9_Init 0 */
+
+  /* USER CODE END TIM9_Init 0 */
+
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM9_Init 1 */
+
+  /* USER CODE END TIM9_Init 1 */
+  htim9.Instance = TIM9;
+  htim9.Init.Prescaler = 500-1;
+  htim9.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim9.Init.Period = 65535;
+  htim9.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim9.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_PWM_Init(&htim9) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim9, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM9_Init 2 */
+
+  /* USER CODE END TIM9_Init 2 */
+  HAL_TIM_MspPostInit(&htim9);
+
+}
+
+/**
   * Enable DMA controller clock
   */
 static void MX_DMA_Init(void)
@@ -399,12 +490,23 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7|GPIO_PIN_9, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : PE2 PE3 PE4 */
   GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PC7 PC9 */
+  GPIO_InitStruct.Pin = GPIO_PIN_7|GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
