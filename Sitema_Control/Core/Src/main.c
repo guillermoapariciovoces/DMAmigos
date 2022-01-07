@@ -37,6 +37,10 @@
 //#define PUERTO_ZUMBADOR GPIOC
 //#define PIN_ESCLUSA GPIO_PIN_7
 //#define PIN_ZUMBADOR GPIO_PIN_9
+
+//I2C Para la LCD
+#define SLAVE_ADDRESS_LCD 0x4E //Creo que no es esta, mirar la datasheet
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -49,6 +53,8 @@ ADC_HandleTypeDef hadc1;
 ADC_HandleTypeDef hadc2;
 DMA_HandleTypeDef hdma_adc1;
 DMA_HandleTypeDef hdma_adc2;
+
+I2C_HandleTypeDef hi2c1;
 
 TIM_HandleTypeDef htim9;
 
@@ -63,6 +69,7 @@ static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_ADC2_Init(void);
 static void MX_TIM9_Init(void);
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -163,6 +170,94 @@ void detenerZumbador()
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9,GPIO_PIN_RESET);
 }
 
+
+// Funciones basicas para el funcionamiento de la LCD via I2C
+
+
+void lcd_send_cmd (char cmd)  // envia comandos
+{
+  char data_u, data_l;
+	uint8_t data_t[4];
+	data_u = (cmd&0xf0);
+	data_l = ((cmd<<4)&0xf0);
+	data_t[0] = data_u|0x0C;  //en=1, rs=0
+	data_t[1] = data_u|0x08;  //en=0, rs=0
+	data_t[2] = data_l|0x0C;  //en=1, rs=0
+	data_t[3] = data_l|0x08;  //en=0, rs=0
+	HAL_I2C_Master_Transmit (&hi2c1, SLAVE_ADDRESS_LCD,(uint8_t *) data_t, 4, 100);
+}
+
+void lcd_send_data (char data) // envia datos a la placa, avanza automatico
+{
+	char data_u, data_l;
+	uint8_t data_t[4];
+	data_u = (data&0xf0);
+	data_l = ((data<<4)&0xf0);
+	data_t[0] = data_u|0x0D;  //en=1, rs=0
+	data_t[1] = data_u|0x09;  //en=0, rs=0
+	data_t[2] = data_l|0x0D;  //en=1, rs=0
+	data_t[3] = data_l|0x09;  //en=0, rs=0
+	HAL_I2C_Master_Transmit (&hi2c1, SLAVE_ADDRESS_LCD,(uint8_t *) data_t, 4, 100);
+}
+
+void lcd_clear (void) // vacia la placa
+{
+	lcd_send_cmd (0x80);
+	for (int i=0; i<70; i++)
+	{
+		lcd_send_data (' ');
+	}
+}
+
+void lcd_put_cur(int row, int col) // Situa el cursor
+{
+    switch (row)
+    {
+        case 0:
+            col |= 0x80;
+            break;
+        case 1:
+            col |= 0xC0;
+            break;
+    }
+
+    lcd_send_cmd (col);
+}
+
+
+void lcd_init (void) // Inicializacion de la placa
+{
+	// 4 bit initialisation
+	HAL_Delay(50);  // wait for >40ms
+	lcd_send_cmd (0x30);
+	HAL_Delay(5);  // wait for >4.1ms
+	lcd_send_cmd (0x30);
+	HAL_Delay(1);  // wait for >100us
+	lcd_send_cmd (0x30);
+	HAL_Delay(10);
+	lcd_send_cmd (0x20);  // 4bit mode
+	HAL_Delay(10);
+
+  // dislay initialisation
+	lcd_send_cmd (0x28); // Function set --> DL=0 (4 bit mode), N = 1 (2 line display) F = 0 (5x8 characters)
+	HAL_Delay(1);
+	lcd_send_cmd (0x08); //Display on/off control --> D=0,C=0, B=0  ---> display off
+	HAL_Delay(1);
+	lcd_send_cmd (0x01);  // clear display
+	HAL_Delay(1);
+	HAL_Delay(1);
+	lcd_send_cmd (0x06); //Entry mode set --> I/D = 1 (increment cursor) & S = 0 (no shift)
+	HAL_Delay(1);
+	lcd_send_cmd (0x0C); //Display on/off control --> D = 1, C and B = 0. (Cursor and blink, last two bits)
+	lcd_clear ();
+}
+
+void lcd_send_string (char *str) // envia cadena de caracteres
+{
+	while (*str) lcd_send_data (*str++);
+}
+
+
 /* USER CODE END 0 */
 
 /**
@@ -197,12 +292,14 @@ int main(void)
   MX_ADC1_Init();
   MX_ADC2_Init();
   MX_TIM9_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
   HAL_ADC_Start_DMA(&hadc1, adcbuffer_pote, 2);	//Handle, buffer, tamaño del buffer
   HAL_ADC_Start_DMA(&hadc2, adcbuffer_nivel, 2);
 
   HAL_TIM_PWM_Start(&htim9, TIM_CHANNEL_2);
+  lcd_init ();
 
   /* USER CODE END 2 */
 
@@ -253,12 +350,42 @@ int main(void)
 	  		  //Led verde
 	  		  //Esclusa obedece al niivel de agua/velocidad de llenado-vaciado
 	  		  //Pantalla informa del modo-nivel-apertura
+	  		    lcd_clear ();
+	  			lcd_put_cur(0, 0);
+	  			lcd_send_string ("Modo automatico");
+	  			HAL_Delay(1);
+	  			lcd_put_cur(1, 0);
+	  		    lcd_send_string ("Nvl");
+	  		    HAL_Delay(1);
+	  		  	lcd_put_cur(1, 4);
+	  		    lcd_send_data(1);   // Aqui va la variable de nivel
+	  			HAL_Delay(1);
+	  			lcd_put_cur(1, 7);
+	  		    lcd_send_string ("Apra");	  	//Necesito una forma corta de escribir apertura
+	  		    HAL_Delay(1);
+	  		  	lcd_put_cur(1, 12);
+	  		    lcd_send_data(1);	  		   //Aqui va la variable de apertura
 	  		  break;
 
 	  	  case 1:		//Modo manual
 	  		  //Led amarillo
 	  		  //Esclusa obedece al mando del potenciómetro
 	  		  //Pantalla informa del modo-nivel-apertura
+	  		    lcd_clear ();
+	  			lcd_put_cur(0, 0);
+	  			lcd_send_string ("Modo manual");
+	  			HAL_Delay(1);
+	  			lcd_put_cur(1, 0);
+	  		    lcd_send_string ("Nvl");
+	  		    HAL_Delay(1);
+	  		  	lcd_put_cur(1, 4);
+	  		    lcd_send_data(1);   // Aqui va la variable de nivel
+	  			HAL_Delay(1);
+	  			lcd_put_cur(1, 7);
+	  		    lcd_send_string ("Apra");	  	//Necesito una forma corta de escribir apertura
+	  		    HAL_Delay(1);
+	  		  	lcd_put_cur(1, 12);
+	  		    lcd_send_data(1);	  		   //Aqui va la variable de apertura
 	  		  break;
 
 	  	  default:		//Modo de bloqueo de emergencia
@@ -266,6 +393,9 @@ int main(void)
 	  		  //Leds rojo parpadeando
 	  		  //Zumbador dando por culo
 	  		  //Pantalla diciento EMERGENCIA
+	  		lcd_clear ();
+	  		lcd_put_cur(0, 0);
+	  		lcd_send_string ("EMERGENCIA");
 	  		  break;
 	  }
 
@@ -418,6 +548,40 @@ static void MX_ADC2_Init(void)
 }
 
 /**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
   * @brief TIM9 Initialization Function
   * @param None
   * @retval None
@@ -491,6 +655,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7|GPIO_PIN_9, GPIO_PIN_RESET);
