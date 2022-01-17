@@ -82,8 +82,8 @@ uint16_t tickstart;
 
 //Flags de interrupciones de pulsadores
 volatile uint8_t flag_cambio, flag_alerta, flag_rearme;
-uint8_t button_count_cambio=0, button_count_alerta=0, button_count_rearme=0;
-int counter_cambio=0, counter_alerta=0, counter_rearme=0;
+volatile uint8_t button_count_cambio=0, button_count_alerta=0, button_count_rearme=0;
+volatile int counter_cambio=0, counter_alerta=0, counter_rearme=0;
 
 //Modo de funncionamiento
 uint8_t mode = 0;
@@ -300,6 +300,8 @@ int main(void)
 
   HAL_TIM_PWM_Start(&htim9, TIM_CHANNEL_2);
   lcd_init ();
+  lcd_send_cmd(0x80 || 0x00);
+  lcd_send_string("PRUEBA");
 
   /* USER CODE END 2 */
 
@@ -308,36 +310,24 @@ int main(void)
   while (1)
   {
 
-	  //Código para probar la esclusa y el zumbador
-	    activarEsclusa(1000);
-	  	  HAL_Delay(1000);
-
-	  	detenerEsclusa();
-	  	  HAL_Delay(1000);
-
-	  	activarZumbador(2000);
-	  	  HAL_Delay(1000);
-
-	  	detenerZumbador();
-	  	  HAL_Delay(1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 
 	//Cambio de modo (1-automático 2-manual)
-	 if(debouncer(&flag_cambio, button_count_cambio, counter_cambio, GPIOE, GPIO_PIN_2)){
+	 if((mode != 2) && flag_cambio /*debouncer(&flag_cambio, button_count_cambio, counter_cambio, GPIOE, GPIO_PIN_2)*/){
 		 flag_cambio = 0;
 		 mode = (mode + 1) % 2;
 	 }
 	 //Desarme del modo de alerta
-	 if(debouncer(&flag_rearme, button_count_rearme, counter_rearme, GPIOE, GPIO_PIN_4)){
+	 if(flag_rearme /*debouncer(&flag_rearme, button_count_rearme, counter_rearme, GPIOE, GPIO_PIN_4)*/){
 		 flag_rearme = 0;
 		 //if(mando de la esclusa totalmente cerrado){
-		 //	  mode = 1;
+		 	  mode = 1;
 	  	 //}
 	  }
 	  //Armado del modo de alerta PREFERENTE POR ORDEN IMPORTANTE
-	  if(debouncer(&flag_alerta, button_count_alerta, counter_alerta, GPIOE, GPIO_PIN_3)){
+	  if(flag_alerta /*debouncer(&flag_alerta, button_count_alerta, counter_alerta, GPIOE, GPIO_PIN_3)*/){
 		  flag_alerta = 0;
 		  mode = 2;
 	  }
@@ -663,8 +653,14 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pins : PE2 PE3 PE4 */
   GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PA0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PC7 PC9 */
   GPIO_InitStruct.Pin = GPIO_PIN_7|GPIO_PIN_9;
@@ -674,6 +670,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
   HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI2_IRQn);
 
