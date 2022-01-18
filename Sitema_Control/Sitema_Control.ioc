@@ -1,16 +1,18 @@
 #MicroXplorer Configuration settings - do not modify
 ADC1.Channel-0\#ChannelRegularConversion=ADC_CHANNEL_5
 ADC1.DMAContinuousRequests=ENABLE
-ADC1.IPParameters=Rank-0\#ChannelRegularConversion,master,Channel-0\#ChannelRegularConversion,SamplingTime-0\#ChannelRegularConversion,NbrOfConversionFlag,DMAContinuousRequests
+ADC1.IPParameters=Rank-0\#ChannelRegularConversion,master,Channel-0\#ChannelRegularConversion,SamplingTime-0\#ChannelRegularConversion,NbrOfConversionFlag,DMAContinuousRequests,Resolution
 ADC1.NbrOfConversionFlag=1
 ADC1.Rank-0\#ChannelRegularConversion=1
+ADC1.Resolution=ADC_RESOLUTION_8B
 ADC1.SamplingTime-0\#ChannelRegularConversion=ADC_SAMPLETIME_3CYCLES
 ADC1.master=1
 ADC2.Channel-0\#ChannelRegularConversion=ADC_CHANNEL_6
 ADC2.DMAContinuousRequests=ENABLE
-ADC2.IPParameters=Rank-0\#ChannelRegularConversion,Channel-0\#ChannelRegularConversion,SamplingTime-0\#ChannelRegularConversion,NbrOfConversionFlag,DMAContinuousRequests
+ADC2.IPParameters=Rank-0\#ChannelRegularConversion,Channel-0\#ChannelRegularConversion,SamplingTime-0\#ChannelRegularConversion,NbrOfConversionFlag,DMAContinuousRequests,Resolution
 ADC2.NbrOfConversionFlag=1
 ADC2.Rank-0\#ChannelRegularConversion=1
+ADC2.Resolution=ADC_RESOLUTION_8B
 ADC2.SamplingTime-0\#ChannelRegularConversion=ADC_SAMPLETIME_3CYCLES
 Dma.ADC1.0.Direction=DMA_PERIPH_TO_MEMORY
 Dma.ADC1.0.FIFOMode=DMA_FIFOMODE_DISABLE

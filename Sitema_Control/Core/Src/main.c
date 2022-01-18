@@ -72,7 +72,7 @@ static void MX_TIM2_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-//Variable para retardos no blaqueantes
+//Variable para retardos no bloqueantes
 uint16_t tickstart;
 
 void Espera(int i){
@@ -229,7 +229,6 @@ void lcd_init (void) // Inicializacion de la placa
 	Espera(1);
 	lcd_send_cmd (0x01);  // clear display
 	Espera(1);
-	Espera(1);
 	lcd_send_cmd (0x06); //Entry mode set --> I/D = 1 (increment cursor) & S = 0 (no shift)
 	Espera(1);
 	lcd_send_cmd (0x0C); //Display on/off control --> D = 1, C and B = 0. (Cursor and blink, last two bits)
@@ -299,9 +298,9 @@ void zumba(int on){
 	}
 	else{
 		htim2.Instance->CCR2 = 500;
-		Espera(1000);
+		Espera(500);
 		htim2.Instance->CCR2 = 1000;
-		Espera(1000);
+		Espera(500);
 	}
 }
 
@@ -310,14 +309,14 @@ void esclusa(int value){
 		htim2.Instance->CCR1 = value + 25;
 }
 
-int ajuste_pote(int* value){	// [MIN MAX] -> [0 100]
+/*int ajuste_pote(int* value){	// [MIN MAX] -> [0 100]
 
 }
 
 int ajuste_nivel(int* value){  // [MIN MAX] -> [100 0]
 
 }
-
+*/
 /* USER CODE END 0 */
 
 /**
@@ -361,14 +360,15 @@ int main(void)
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
 
-  Espera(500);
+  Espera(1);
   lcd_init ();
-  Espera(1000);
+  /*
+  Espera(1);
   lcd_send_cmd(0x80 || 0x00);
-  Espera(1000);
+  Espera(1);
   lcd_send_string("PRUEBA");
 
-  Espera(1000);
+  Espera(100);*/
 
   /* USER CODE END 2 */
 
@@ -422,7 +422,7 @@ int main(void)
 	  	  case 0:		//Modo automático
 	  		  //Led verde
 	  		  //Esclusa obedece al niivel de agua/velocidad de llenado-vaciado
-	  		  esclusa(ajuste_nivel(adcvalue_nivel));
+	  		  //esclusa(ajuste_nivel(adcvalue_nivel));
 	  		  //Pantalla informa del modo-nivel-apertura
 	  		  display(0);
 	  		  zumba(0);
@@ -431,7 +431,7 @@ int main(void)
 	  	  case 1:		//Modo manual
 	  		  //Led amarillo
 	  		  //Esclusa obedece al mando del potenciómetro
-	  		  esclusa(ajuste_pote(adcvalue_pote));
+	  		  //esclusa(ajuste_pote(adcvalue_pote));
 	  		  //Pantalla informa del modo-nivel-apertura
 			  display(1);
 	  		  zumba(0);
@@ -516,7 +516,7 @@ static void MX_ADC1_Init(void)
   */
   hadc1.Instance = ADC1;
   hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
-  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.Resolution = ADC_RESOLUTION_8B;
   hadc1.Init.ScanConvMode = DISABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
@@ -566,7 +566,7 @@ static void MX_ADC2_Init(void)
   */
   hadc2.Instance = ADC2;
   hadc2.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
-  hadc2.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc2.Init.Resolution = ADC_RESOLUTION_8B;
   hadc2.Init.ScanConvMode = DISABLE;
   hadc2.Init.ContinuousConvMode = DISABLE;
   hadc2.Init.DiscontinuousConvMode = DISABLE;
