@@ -134,6 +134,25 @@ int debouncer(volatile uint8_t* button_int, GPIO_TypeDef* GPIO_port, uint16_t GP
 	return 0;
 }
 
+
+int ajuste_pote(int value){	// [MIN MAX] -> [0 100]
+	//Minimo valor 67, maximo valor 550
+	if(value <= MIN_POTE)
+		return 0;
+	else if (value >= MAX_POTE)
+		return 100;
+	else
+		return (int)(100*((float)(value-MIN_POTE)/(float)(MAX_POTE-MIN_POTE)));
+}
+
+int ajuste_nivel(int value){  // [MIN MAX] -> [100 0]
+	if(value <= MIN_NIVEL)
+			return 0;
+		else if (value >= MAX_NIVEL)
+			return 100;
+		else
+			return ((value-MIN_NIVEL)/(MAX_NIVEL-MIN_NIVEL)*100);
+}
 // Lectura de datos analógicos mediante DMA para el potenciómetro de control y el sensor de nivel
 
 //uint32_t adcvalue_pote[2], adcvalue_nivel[2], adcbuffer_pote[2], adcbuffer_nivel[2];
@@ -257,16 +276,19 @@ void display(int mode){
 			  	lcd_send_string ("Modo automatico");
 			  	Espera(1);
 			  	lcd_put_cur(1, 0);
-			  	lcd_send_string ("Nvl: ");
+			  	lcd_send_string ("Nvl:       %");
 			  	Espera(1);
-			  	lcd_put_cur(1, 8);
-			  	lcd_send_data(1);   // Aqui va la variable de nivel
+			  	lcd_put_cur(1, 7);
+			  	char str[64];
+			  	sprintf(str, "%d", valor_nivel);           // integer to string
+	            lcd_send_string (str);             // Aqui va la variable de nivel
 			  	Espera(1);
 			  	lcd_put_cur(2, 0);
-			  	lcd_send_string ("Apra: ");	  	//Necesito una forma corta de escribir apertura
+			  	lcd_send_string ("Apra:      %");  //Necesito una forma corta de escribir apertura
 			  	Espera(1);
-			  	lcd_put_cur(2, 8);
-			  	lcd_send_data(1);	  		   //Aqui va la variable de apertura
+			  	lcd_put_cur(2, 7);
+			  	sprintf(str, "%d", ajuste_nivel(valor_nivel));           // integer to string
+			  	lcd_send_string (str);	           //Aqui va la variable de apertura
 			  	break;
 
 			case 1:		//Modo manual
@@ -275,16 +297,18 @@ void display(int mode){
 			  	lcd_send_string ("Modo manual");
 			  	Espera(1);
 			  	lcd_put_cur(1, 0);
-			  	lcd_send_string ("Nvl: ");
+			  	lcd_send_string ("Nvl:       %");
 			  	Espera(1);
-			  	lcd_put_cur(1, 8);
-			  	lcd_send_data(1);   // Aqui va la variable de nivel
+			  	lcd_put_cur(1, 7);
+			  	sprintf(str, "%d", valor_nivel);           // integer to string
+	            lcd_send_string (str);             // Aqui va la variable de nivel
 			  	Espera(1);
 			  	lcd_put_cur(2, 0);
-			  	lcd_send_string ("Apra: ");	  	//Necesito una forma corta de escribir apertura
+			  	lcd_send_string ("Apra:      %");  //Necesito una forma corta de escribir apertura
 			  	Espera(1);
-			  	lcd_put_cur(2, 8);
-			  	lcd_send_data(1);	  		   //Aqui va la variable de apertura
+			  	lcd_put_cur(2, 7);
+			  	sprintf(str, "%d", ajuste_pote(valor_pote));           // integer to string
+			  	lcd_send_string (str);	           //Aqui va la variable de apertura
 			  	break;
 
 			 default:		//Modo de bloqueo de emergencia
@@ -318,24 +342,7 @@ void esclusa(int value){
 	valorservo = value;
 }
 
-int ajuste_pote(int value){	// [MIN MAX] -> [0 100]
-	//Minimo valor 67, maximo valor 550
-	if(value <= MIN_POTE)
-		return 0;
-	else if (value >= MAX_POTE)
-		return 100;
-	else
-		return (int)(100*((float)(value-MIN_POTE)/(float)(MAX_POTE-MIN_POTE)));
-}
 
-int ajuste_nivel(int value){  // [MIN MAX] -> [100 0]
-	if(value <= MIN_NIVEL)
-			return 0;
-		else if (value >= MAX_NIVEL)
-			return 100;
-		else
-			return ((value-MIN_NIVEL)/(MAX_NIVEL-MIN_NIVEL)*100);
-}
 
 /* USER CODE END 0 */
 
