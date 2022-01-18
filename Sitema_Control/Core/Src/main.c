@@ -77,7 +77,7 @@ uint16_t tickstart;
 
 void Espera(int i){
 	tickstart = HAL_GetTick();
-			while((HAL_GetTick() - tickstart) == i);
+			while((HAL_GetTick() - tickstart) < i);
 }
 
 //Flags de interrupciones de pulsadores
@@ -131,16 +131,19 @@ int debouncer(volatile uint8_t* button_int, GPIO_TypeDef* GPIO_port, uint16_t GP
 // Lectura de datos analógicos mediante DMA para el potenciómetro de control y el sensor de nivel
 
 uint32_t adcvalue_pote[2], adcvalue_nivel[2], adcbuffer_pote[2], adcbuffer_nivel[2];
+uint32_t valor_pote, valor_nivel;
 
 void HAL_ADC_ConvCpltCallback (ADC_HandleTypeDef * hadc){
 
 	if (hadc->Instance == ADC1){
 		adcvalue_pote[0]=adcbuffer_pote[0];
 		adcvalue_pote[1]=adcbuffer_pote[1];
+		valor_pote = adcvalue_pote[0];
 	}
 	else if (hadc->Instance == ADC2){
 		adcvalue_nivel[0]=adcbuffer_nivel[0];
 		adcvalue_nivel[1]=adcbuffer_nivel[1];
+		valor_nivel = adcvalue_nivel[0];
 	}
 }
 
@@ -193,6 +196,13 @@ void lcd_put_cur(int row, int col) // Situa el cursor
         case 1:
             col |= 0xC0;
             break;
+        case 2:
+            col |= 0x94;
+            break;
+        case 3:
+            col |= 0xE4;
+            break;
+
     }
 
     lcd_send_cmd (col);
@@ -244,13 +254,13 @@ void display(int mode){
 			  	lcd_put_cur(1, 0);
 			  	lcd_send_string ("Nvl: ");
 			  	Espera(1);
-			  	lcd_put_cur(1, 6);
+			  	lcd_put_cur(1, 8);
 			  	lcd_send_data(1);   // Aqui va la variable de nivel
 			  	Espera(1);
-			  	lcd_put_cur(1, 10);
+			  	lcd_put_cur(2, 0);
 			  	lcd_send_string ("Apra: ");	  	//Necesito una forma corta de escribir apertura
 			  	Espera(1);
-			  	lcd_put_cur(1, 16);
+			  	lcd_put_cur(2, 8);
 			  	lcd_send_data(1);	  		   //Aqui va la variable de apertura
 			  	break;
 
@@ -262,13 +272,13 @@ void display(int mode){
 			  	lcd_put_cur(1, 0);
 			  	lcd_send_string ("Nvl: ");
 			  	Espera(1);
-			  	lcd_put_cur(1, 6);
+			  	lcd_put_cur(1, 8);
 			  	lcd_send_data(1);   // Aqui va la variable de nivel
 			  	Espera(1);
-			  	lcd_put_cur(1, 10);
+			  	lcd_put_cur(2, 0);
 			  	lcd_send_string ("Apra: ");	  	//Necesito una forma corta de escribir apertura
 			  	Espera(1);
-			  	lcd_put_cur(1, 16);
+			  	lcd_put_cur(2, 8);
 			  	lcd_send_data(1);	  		   //Aqui va la variable de apertura
 			  	break;
 
@@ -296,12 +306,17 @@ void zumba(int on){
 }
 
 void esclusa(int value){
-
-
-
-	htim2.Instance->CCR1 = 125;
+	if((value >= 0) && (value <= 100))
+		htim2.Instance->CCR1 = value + 25;
 }
 
+int ajuste_pote(int* value){	// [MIN MAX] -> [0 100]
+
+}
+
+int ajuste_nivel(int* value){  // [MIN MAX] -> [100 0]
+
+}
 
 /* USER CODE END 0 */
 
@@ -382,7 +397,6 @@ int main(void)
 */
 
 
-
 	//Cambio de modo (1-automático 0-manual)
 	 if((mode != 2) && flag_cambio /*!debouncer(&flag_cambio, GPIOE, GPIO_PIN_2)*/){
 		 flag_cambio = 0;
@@ -408,28 +422,29 @@ int main(void)
 	  	  case 0:		//Modo automático
 	  		  //Led verde
 	  		  //Esclusa obedece al niivel de agua/velocidad de llenado-vaciado
+	  		  esclusa(ajuste_nivel(adcvalue_nivel));
 	  		  //Pantalla informa del modo-nivel-apertura
-	  		display(0);
-	  		zumba(0);
+	  		  display(0);
+	  		  zumba(0);
 	  		  break;
 
 	  	  case 1:		//Modo manual
 	  		  //Led amarillo
 	  		  //Esclusa obedece al mando del potenciómetro
+	  		  esclusa(ajuste_pote(adcvalue_pote));
 	  		  //Pantalla informa del modo-nivel-apertura
-	  		display(1);
-	  		zumba(0);
+			  display(1);
+	  		  zumba(0);
 	  		  break;
 
 	  	  default:		//Modo de bloqueo de emergencia
 	  		  //Cerrar la esclusa totalmente
-	  		htim2.Instance->CCR1 = 25;  // duty cycle is .5 ms, 2.5% of 20ms (0º)
+	  		  htim2.Instance->CCR1 = 25;  // duty cycle is .5 ms, 2.5% of 20ms (0º)
 	  		  //Leds rojo parpadeando
 	  		  //Zumbador dando por culo
-	  		display(2);
-	  		zumba(1);
+	  		  display(2);
+	  		  zumba(1);
 	  		  //Pantalla diciento EMERGENCIA
-
 	  		  break;
 	  }
 
