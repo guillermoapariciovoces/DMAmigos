@@ -295,6 +295,13 @@ void zumba(int on){
 	}
 }
 
+void esclusa(int value){
+
+
+
+	htim2.Instance->CCR1 = 125;
+}
+
 
 /* USER CODE END 0 */
 
