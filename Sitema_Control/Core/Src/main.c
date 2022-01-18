@@ -33,10 +33,10 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define MAX_POTE 550
-#define MIN_POTE 67
-#define MAX_NIVEL 50
-#define MIN_NIVEL 1
+#define MAX_POTE 1023
+#define MIN_POTE 5
+#define MAX_NIVEL 1023
+#define MIN_NIVEL 5
 
 
 //I2C Para la LCD
@@ -85,6 +85,7 @@ volatile uint8_t flag_cambio, flag_alerta, flag_rearme;
 
 //Valores analógicos
 uint16_t valor_pote, valor_nivel;
+int valorservo;
 
 //Modo de funncionamiento
 uint8_t mode = 0;
@@ -151,7 +152,13 @@ int ajuste_nivel(int value){  // [MIN MAX] -> [100 0]
 		else if (value >= MAX_NIVEL)
 			return 100;
 		else
-			return ((value-MIN_NIVEL)/(MAX_NIVEL-MIN_NIVEL)*100);
+			return (int)(100*((float)(value-MIN_POTE)/(float)(MAX_POTE-MIN_POTE)));
+}
+
+void esclusa(int value){
+	if((value >= 0) && (value <= 100))
+		htim2.Instance->CCR1 = value + 25;
+	valorservo = value;
 }
 // Lectura de datos analógicos mediante DMA para el potenciómetro de control y el sensor de nivel
 
@@ -205,7 +212,7 @@ void lcd_send_data (char data) // envia datos a la placa, avanza automatico
 void lcd_clear (void) // vacia la placa
 {
 	lcd_send_cmd (0x80);
-	for (int i=0; i<70; i++)
+	for (int i=0; i<84; i++)
 	{
 		lcd_send_data (' ');
 	}
@@ -225,7 +232,7 @@ void lcd_put_cur(int row, int col) // Situa el cursor
             col |= 0x94;
             break;
         case 3:
-            col |= 0xE4;
+            col |= 0xD4;
             break;
 
     }
@@ -266,9 +273,10 @@ void lcd_send_string (char *str) // envia cadena de caracteres
 }
 
 void display(int mode){
-	static int prev_mode = 3;
-
-	if(mode != prev_mode){
+	static int tickstart = 0;
+  	char str[4];
+	if(HAL_GetTick() - tickstart > 500){
+		tickstart = HAL_GetTick();
 		switch(mode){
 			case 0:		//Modo automático
 			  	lcd_clear ();
@@ -276,17 +284,16 @@ void display(int mode){
 			  	lcd_send_string ("Modo automatico");
 			  	Espera(1);
 			  	lcd_put_cur(1, 0);
-			  	lcd_send_string ("Nvl:       %");
+			  	lcd_send_string ("Nvl:       ");
 			  	Espera(1);
 			  	lcd_put_cur(1, 7);
-			  	char str[64];
 			  	sprintf(str, "%d", valor_nivel);           // integer to string
 	            lcd_send_string (str);             // Aqui va la variable de nivel
 			  	Espera(1);
 			  	lcd_put_cur(2, 0);
-			  	lcd_send_string ("Apra:      %");  //Necesito una forma corta de escribir apertura
+			  	lcd_send_string ("Apra:      ");  //Necesito una forma corta de escribir apertura
 			  	Espera(1);
-			  	lcd_put_cur(2, 7);
+			  	lcd_put_cur(2, 10);
 			  	sprintf(str, "%d", ajuste_nivel(valor_nivel));           // integer to string
 			  	lcd_send_string (str);	           //Aqui va la variable de apertura
 			  	break;
@@ -297,16 +304,16 @@ void display(int mode){
 			  	lcd_send_string ("Modo manual");
 			  	Espera(1);
 			  	lcd_put_cur(1, 0);
-			  	lcd_send_string ("Nvl:       %");
+			  	lcd_send_string ("Nvl:       ");
 			  	Espera(1);
 			  	lcd_put_cur(1, 7);
 			  	sprintf(str, "%d", valor_nivel);           // integer to string
 	            lcd_send_string (str);             // Aqui va la variable de nivel
 			  	Espera(1);
 			  	lcd_put_cur(2, 0);
-			  	lcd_send_string ("Apra:      %");  //Necesito una forma corta de escribir apertura
+			  	lcd_send_string ("Apra:      ");  //Necesito una forma corta de escribir apertura
 			  	Espera(1);
-			  	lcd_put_cur(2, 7);
+			  	lcd_put_cur(2, 10);
 			  	sprintf(str, "%d", ajuste_pote(valor_pote));           // integer to string
 			  	lcd_send_string (str);	           //Aqui va la variable de apertura
 			  	break;
@@ -316,10 +323,23 @@ void display(int mode){
 			    lcd_clear ();
 			    lcd_put_cur(0, 0);
 			  	lcd_send_string ("EMERGENCIA");
+			  	Espera(1);
+			    lcd_put_cur(1, 0);
+			    lcd_send_string ("La esclusa se cerro");
+			    Espera(1);
+			    lcd_put_cur(2, 0);
+			    lcd_send_string ("Cierre manualmente");
+			    Espera(1);
+			    lcd_put_cur(3, 0);
+			    lcd_send_string ("Apra:      ");  //Necesito una forma corta de escribir apertura
+			    Espera(1);
+			    lcd_put_cur(3, 10);
+			    sprintf(str, "%d", ajuste_pote(valor_pote));           // integer to string
+			    lcd_send_string (str);	           //Aqui va la variable de apertura
+
 			  	break;
 		}
 	}
-	prev_mode = mode;
 }
 
 void zumba(int on){
@@ -327,19 +347,11 @@ void zumba(int on){
 		htim2.Instance->CCR2 = 0;
 	}
 	else{
-		htim2.Instance->CCR2 = 500;
+		htim2.Instance->CCR2 = 200;
 		Espera(500);
-		htim2.Instance->CCR2 = 1000;
+		htim2.Instance->CCR2 = 2000;
 		Espera(500);
 	}
-}
-
-int valorservo;
-
-void esclusa(int value){
-	if((value >= 0) && (value <= 100))
-		htim2.Instance->CCR1 = value + 25;
-	valorservo = value;
 }
 
 
@@ -386,13 +398,13 @@ int main(void)
 
   Espera(1);
   lcd_init ();
-  /*
+
   Espera(1);
   lcd_send_cmd(0x80 || 0x00);
   Espera(1);
   lcd_send_string("PRUEBA");
 
-  Espera(100);*/
+  Espera(100);
 
   /* USER CODE END 2 */
 
@@ -436,16 +448,16 @@ int main(void)
 	  	  HAL_ADC_Stop(&hadc2);
 
 	//Cambio de modo (1-automático 0-manual)
-	 if((mode != 2) && flag_cambio /*!debouncer(&flag_cambio, GPIOE, GPIO_PIN_2)*/){
+	 if((mode != 2) && debouncer(&flag_cambio, GPIOE, GPIO_PIN_2)){
 		 flag_cambio = 0;
 		 mode = (mode + 1) % 2;
 	 }
 	 //Desarme del modo de alerta
 	 if(flag_rearme /*!debouncer(&flag_rearme, GPIOE, GPIO_PIN_4)*/){
 		 flag_rearme = 0;
-		 //if(mando de la esclusa totalmente cerrado){
+		 if(ajuste_pote(valor_pote) == 0){
 		 	  mode = 1;
-	  	 //}
+	  	 }
 	  }
 	  //Armado del modo de alerta PREFERENTE POR ORDEN IMPORTANTE
 	  if(flag_alerta /*!debouncer(&flag_alerta, GPIOE, GPIO_PIN_3)*/){
@@ -460,7 +472,7 @@ int main(void)
 	  	  case 0:		//Modo automático
 	  		  //Led verde
 	  		  //Esclusa obedece al nivel de agua
-	  		  //esclusa(ajuste_nivel(valor_nivel));
+	  		  esclusa(ajuste_nivel(valor_nivel));
 	  		  //Pantalla informa del modo-nivel-apertura
 	  		  display(0);
 	  		  zumba(0);
