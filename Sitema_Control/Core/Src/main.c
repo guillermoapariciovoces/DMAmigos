@@ -257,6 +257,57 @@ void lcd_send_string (char *str) // envia cadena de caracteres
 	while (*str) lcd_send_data (*str++);
 }
 
+void display(int mode){
+	static int prev_mode = 3;
+
+	if(mode != prev_mode){
+		switch(mode){
+			case 0:		//Modo automático
+			  	lcd_clear ();
+			  	lcd_put_cur(0, 0);
+			  	lcd_send_string ("Modo automatico");
+			  	HAL_Delay(1);
+			  	lcd_put_cur(1, 0);
+			  	lcd_send_string ("Nvl: ");
+			  	HAL_Delay(1);
+			  	lcd_put_cur(1, 6);
+			  	lcd_send_data(1);   // Aqui va la variable de nivel
+			  	HAL_Delay(1);
+			  	lcd_put_cur(1, 10);
+			  	lcd_send_string ("Apra: ");	  	//Necesito una forma corta de escribir apertura
+			  	HAL_Delay(1);
+			  	lcd_put_cur(1, 12);
+			  	lcd_send_data(1);	  		   //Aqui va la variable de apertura
+			  	break;
+
+			case 1:		//Modo manual
+			  	lcd_clear ();
+			  	lcd_put_cur(0, 0);
+			  	lcd_send_string ("Modo manual");
+			  	HAL_Delay(1);
+			  	lcd_put_cur(1, 0);
+			  	lcd_send_string ("Nvl: ");
+			  	HAL_Delay(1);
+			  	lcd_put_cur(1, 6);
+			  	lcd_send_data(1);   // Aqui va la variable de nivel
+			  	HAL_Delay(1);
+			  	lcd_put_cur(1, 10);
+			  	lcd_send_string ("Apra:");	  	//Necesito una forma corta de escribir apertura
+			  	HAL_Delay(1);
+			  	lcd_put_cur(1, 12);
+			  	lcd_send_data(1);	  		   //Aqui va la variable de apertura
+			  	break;
+
+			 default:		//Modo de bloqueo de emergencia
+
+			    lcd_clear ();
+			    lcd_put_cur(0, 0);
+			  	lcd_send_string ("EMERGENCIA");
+			  	break;
+		}
+	}
+	prev_mode = mode;
+}
 
 /* USER CODE END 0 */
 
@@ -321,19 +372,19 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
 	//Cambio de modo (1-automático 2-manual)
-	 if((mode != 2) && !debouncer(&flag_cambio, GPIOE, GPIO_PIN_2)){
+	 if((mode != 2) && flag_cambio /*!debouncer(&flag_cambio, GPIOE, GPIO_PIN_2)*/){
 		 flag_cambio = 0;
 		 mode = (mode + 1) % 2;
 	 }
 	 //Desarme del modo de alerta
-	 if(!debouncer(&flag_rearme, GPIOE, GPIO_PIN_4)){
+	 if(flag_rearme /*!debouncer(&flag_rearme, GPIOE, GPIO_PIN_4)*/){
 		 flag_rearme = 0;
 		 //if(mando de la esclusa totalmente cerrado){
 		 	  mode = 1;
 	  	 //}
 	  }
 	  //Armado del modo de alerta PREFERENTE POR ORDEN IMPORTANTE
-	  if(!debouncer(&flag_alerta, GPIOE, GPIO_PIN_3)){
+	  if(flag_alerta /*!debouncer(&flag_alerta, GPIOE, GPIO_PIN_3)*/){
 		  flag_alerta = 0;
 		  mode = 2;
 	  }
@@ -346,42 +397,14 @@ int main(void)
 	  		  //Led verde
 	  		  //Esclusa obedece al niivel de agua/velocidad de llenado-vaciado
 	  		  //Pantalla informa del modo-nivel-apertura
-	  		    lcd_clear ();
-	  			lcd_put_cur(0, 0);
-	  			lcd_send_string ("Modo automatico");
-	  			HAL_Delay(1);
-	  			lcd_put_cur(1, 0);
-	  		    lcd_send_string ("Nvl");
-	  		    HAL_Delay(1);
-	  		  	lcd_put_cur(1, 4);
-	  		    lcd_send_data(1);   // Aqui va la variable de nivel
-	  			HAL_Delay(1);
-	  			lcd_put_cur(1, 7);
-	  		    lcd_send_string ("Apra");	  	//Necesito una forma corta de escribir apertura
-	  		    HAL_Delay(1);
-	  		  	lcd_put_cur(1, 12);
-	  		    lcd_send_data(1);	  		   //Aqui va la variable de apertura
+
 	  		  break;
 
 	  	  case 1:		//Modo manual
 	  		  //Led amarillo
 	  		  //Esclusa obedece al mando del potenciómetro
 	  		  //Pantalla informa del modo-nivel-apertura
-	  		    lcd_clear ();
-	  			lcd_put_cur(0, 0);
-	  			lcd_send_string ("Modo manual");
-	  			HAL_Delay(1);
-	  			lcd_put_cur(1, 0);
-	  		    lcd_send_string ("Nvl");
-	  		    HAL_Delay(1);
-	  		  	lcd_put_cur(1, 4);
-	  		    lcd_send_data(1);   // Aqui va la variable de nivel
-	  			HAL_Delay(1);
-	  			lcd_put_cur(1, 7);
-	  		    lcd_send_string ("Apra");	  	//Necesito una forma corta de escribir apertura
-	  		    HAL_Delay(1);
-	  		  	lcd_put_cur(1, 12);
-	  		    lcd_send_data(1);	  		   //Aqui va la variable de apertura
+
 	  		  break;
 
 	  	  default:		//Modo de bloqueo de emergencia
@@ -389,11 +412,10 @@ int main(void)
 	  		  //Leds rojo parpadeando
 	  		  //Zumbador dando por culo
 	  		  //Pantalla diciento EMERGENCIA
-	  		lcd_clear ();
-	  		lcd_put_cur(0, 0);
-	  		lcd_send_string ("EMERGENCIA");
+
 	  		  break;
 	  }
+	  display(mode);
 
   }
   /* USER CODE END 3 */
