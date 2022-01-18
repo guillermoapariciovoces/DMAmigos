@@ -33,6 +33,12 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
+#define MAX_POTE 550
+#define MIN_POTE 67
+#define MAX_NIVEL 50
+#define MIN_NIVEL 1
+
+
 //I2C Para la LCD
 #define SLAVE_ADDRESS_LCD 0x4E //Creo que no es esta, mirar la datasheet(SOLUCIONADO)
 
@@ -46,8 +52,6 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 ADC_HandleTypeDef hadc2;
-DMA_HandleTypeDef hdma_adc1;
-DMA_HandleTypeDef hdma_adc2;
 
 I2C_HandleTypeDef hi2c1;
 
@@ -60,11 +64,10 @@ TIM_HandleTypeDef htim2;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_DMA_Init(void);
-static void MX_ADC1_Init(void);
-static void MX_ADC2_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_ADC1_Init(void);
+static void MX_ADC2_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -75,18 +78,21 @@ static void MX_TIM2_Init(void);
 //Variable para retardos no bloqueantes
 uint16_t tickstart;
 
+//Flags de interrupciones de pulsadores
+volatile uint8_t flag_cambio, flag_alerta, flag_rearme;
+//volatile uint8_t button_count_cambio=0, button_count_alerta=0, button_count_rearme=0;
+//volatile int counter_cambio=0, counter_alerta=0, counter_rearme=0;
+
+//Valores analógicos
+uint16_t valor_pote, valor_nivel;
+
+//Modo de funncionamiento
+uint8_t mode = 0;
+
 void Espera(int i){
 	tickstart = HAL_GetTick();
 			while((HAL_GetTick() - tickstart) < i);
 }
-
-//Flags de interrupciones de pulsadores
-volatile uint8_t flag_cambio, flag_alerta, flag_rearme;
-volatile uint8_t button_count_cambio=0, button_count_alerta=0, button_count_rearme=0;
-volatile int counter_cambio=0, counter_alerta=0, counter_rearme=0;
-
-//Modo de funncionamiento
-uint8_t mode = 0;
 
 //Interrupciones de pulsadores
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
@@ -130,10 +136,10 @@ int debouncer(volatile uint8_t* button_int, GPIO_TypeDef* GPIO_port, uint16_t GP
 
 // Lectura de datos analógicos mediante DMA para el potenciómetro de control y el sensor de nivel
 
-uint32_t adcvalue_pote[2], adcvalue_nivel[2], adcbuffer_pote[2], adcbuffer_nivel[2];
-uint32_t valor_pote, valor_nivel;
+//uint32_t adcvalue_pote[2], adcvalue_nivel[2], adcbuffer_pote[2], adcbuffer_nivel[2];
 
-void HAL_ADC_ConvCpltCallback (ADC_HandleTypeDef * hadc){
+
+/*void HAL_ADC_ConvCpltCallback (ADC_HandleTypeDef * hadc){
 
 	if (hadc->Instance == ADC1){
 		adcvalue_pote[0]=adcbuffer_pote[0];
@@ -145,7 +151,7 @@ void HAL_ADC_ConvCpltCallback (ADC_HandleTypeDef * hadc){
 		adcvalue_nivel[1]=adcbuffer_nivel[1];
 		valor_nivel = adcvalue_nivel[0];
 	}
-}
+}*/
 
 
 // Funciones basicas para el funcionamiento de la LCD via I2C
@@ -222,7 +228,7 @@ void lcd_init (void) // Inicializacion de la placa
 	lcd_send_cmd (0x20);  // 4bit mode
 	Espera(10);
 
-  // dislay initialisation
+  // display initialisation
 	lcd_send_cmd (0x28); // Function set --> DL=0 (4 bit mode), N = 1 (2 line display) F = 0 (5x8 characters)
 	Espera(1);
 	lcd_send_cmd (0x08); //Display on/off control --> D=0,C=0, B=0  ---> display off
@@ -304,19 +310,33 @@ void zumba(int on){
 	}
 }
 
+int valorservo;
+
 void esclusa(int value){
 	if((value >= 0) && (value <= 100))
 		htim2.Instance->CCR1 = value + 25;
+	valorservo = value;
 }
 
-/*int ajuste_pote(int* value){	// [MIN MAX] -> [0 100]
-
+int ajuste_pote(int value){	// [MIN MAX] -> [0 100]
+	//Minimo valor 67, maximo valor 550
+	if(value <= MIN_POTE)
+		return 0;
+	else if (value >= MAX_POTE)
+		return 100;
+	else
+		return (int)(100*((float)(value-MIN_POTE)/(float)(MAX_POTE-MIN_POTE)));
 }
 
-int ajuste_nivel(int* value){  // [MIN MAX] -> [100 0]
-
+int ajuste_nivel(int value){  // [MIN MAX] -> [100 0]
+	if(value <= MIN_NIVEL)
+			return 0;
+		else if (value >= MAX_NIVEL)
+			return 100;
+		else
+			return ((value-MIN_NIVEL)/(MAX_NIVEL-MIN_NIVEL)*100);
 }
-*/
+
 /* USER CODE END 0 */
 
 /**
@@ -347,15 +367,12 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
-  MX_ADC1_Init();
-  MX_ADC2_Init();
   MX_I2C1_Init();
   MX_TIM2_Init();
+  MX_ADC1_Init();
+  MX_ADC2_Init();
   /* USER CODE BEGIN 2 */
 
-  HAL_ADC_Start_DMA(&hadc1, adcbuffer_pote, 2);	//Handle, buffer, tamaño del buffer
-  HAL_ADC_Start_DMA(&hadc2, adcbuffer_nivel, 2);
 
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
@@ -396,6 +413,20 @@ int main(void)
 	  Espera(2000);
 */
 
+	//Lecturas por polling (desgraciadamente) del ADC
+	  HAL_ADC_Start(&hadc1);
+	  	  if (HAL_ADC_PollForConversion(&hadc1, 100)==HAL_OK)
+	  	  {
+	  	   valor_pote=HAL_ADC_GetValue(&hadc1);
+	  	  }
+	  	  HAL_ADC_Stop(&hadc1);
+
+	  HAL_ADC_Start(&hadc2);
+	  	  if (HAL_ADC_PollForConversion(&hadc2, 100)==HAL_OK)
+	  	  {
+	  		valor_nivel=HAL_ADC_GetValue(&hadc2);
+	  	  }
+	  	  HAL_ADC_Stop(&hadc2);
 
 	//Cambio de modo (1-automático 0-manual)
 	 if((mode != 2) && flag_cambio /*!debouncer(&flag_cambio, GPIOE, GPIO_PIN_2)*/){
@@ -421,8 +452,8 @@ int main(void)
 
 	  	  case 0:		//Modo automático
 	  		  //Led verde
-	  		  //Esclusa obedece al niivel de agua/velocidad de llenado-vaciado
-	  		  //esclusa(ajuste_nivel(adcvalue_nivel));
+	  		  //Esclusa obedece al nivel de agua
+	  		  //esclusa(ajuste_nivel(valor_nivel));
 	  		  //Pantalla informa del modo-nivel-apertura
 	  		  display(0);
 	  		  zumba(0);
@@ -431,16 +462,17 @@ int main(void)
 	  	  case 1:		//Modo manual
 	  		  //Led amarillo
 	  		  //Esclusa obedece al mando del potenciómetro
-	  		  //esclusa(ajuste_pote(adcvalue_pote));
+	  		  esclusa(ajuste_pote(valor_pote));
 	  		  //Pantalla informa del modo-nivel-apertura
 			  display(1);
 	  		  zumba(0);
 	  		  break;
 
 	  	  default:		//Modo de bloqueo de emergencia
+	  		  //Leds rojo
 	  		  //Cerrar la esclusa totalmente
 	  		  htim2.Instance->CCR1 = 25;  // duty cycle is .5 ms, 2.5% of 20ms (0º)
-	  		  //Leds rojo parpadeando
+	  		  //Leds rojo
 	  		  //Zumbador dando por culo
 	  		  display(2);
 	  		  zumba(1);
@@ -516,7 +548,7 @@ static void MX_ADC1_Init(void)
   */
   hadc1.Instance = ADC1;
   hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
-  hadc1.Init.Resolution = ADC_RESOLUTION_8B;
+  hadc1.Init.Resolution = ADC_RESOLUTION_10B;
   hadc1.Init.ScanConvMode = DISABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
@@ -524,7 +556,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc1.Init.NbrOfConversion = 1;
-  hadc1.Init.DMAContinuousRequests = ENABLE;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
@@ -566,7 +598,7 @@ static void MX_ADC2_Init(void)
   */
   hadc2.Instance = ADC2;
   hadc2.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
-  hadc2.Init.Resolution = ADC_RESOLUTION_8B;
+  hadc2.Init.Resolution = ADC_RESOLUTION_10B;
   hadc2.Init.ScanConvMode = DISABLE;
   hadc2.Init.ContinuousConvMode = DISABLE;
   hadc2.Init.DiscontinuousConvMode = DISABLE;
@@ -574,7 +606,7 @@ static void MX_ADC2_Init(void)
   hadc2.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc2.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc2.Init.NbrOfConversion = 1;
-  hadc2.Init.DMAContinuousRequests = ENABLE;
+  hadc2.Init.DMAContinuousRequests = DISABLE;
   hadc2.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   if (HAL_ADC_Init(&hadc2) != HAL_OK)
   {
@@ -689,25 +721,6 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 2 */
   HAL_TIM_MspPostInit(&htim2);
-
-}
-
-/**
-  * Enable DMA controller clock
-  */
-static void MX_DMA_Init(void)
-{
-
-  /* DMA controller clock enable */
-  __HAL_RCC_DMA2_CLK_ENABLE();
-
-  /* DMA interrupt init */
-  /* DMA2_Stream0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
-  /* DMA2_Stream2_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA2_Stream2_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA2_Stream2_IRQn);
 
 }
 
