@@ -101,24 +101,25 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	}
 }
 
-//Debouncer (apaptado para funcionamiento múltiple)
-int debouncer(volatile uint8_t* button_int, uint8_t button_count, int counter, GPIO_TypeDef* GPIO_port, uint16_t GPIO_number){
+int debouncer(volatile uint8_t* button_int, GPIO_TypeDef* GPIO_port, uint16_t GPIO_number){
+	static uint8_t button_count=0;
+	static int counter=0;
 
 	if (*button_int==1){
 		if (button_count==0) {
 			counter=HAL_GetTick();
-			button_count++;
+			button_count++;										//Contador de disparo correcto
 		}
 		if (HAL_GetTick()-counter>=20){
 			counter=HAL_GetTick();
-			if (HAL_GPIO_ReadPin(GPIO_port, GPIO_number)!=1){
+			if (HAL_GPIO_ReadPin(GPIO_port, GPIO_number)!=1){	//Comprueba, si baja el nivel resetea
 				button_count=1;
 			}
 			else{
-				button_count++;
+				button_count++;									//Comprueba, si se mantiene el nivel incrementa
 			}
-			if (button_count==4){
-				button_count=0;
+			if (button_count==4){								//A los cuatro ciclos de confirmación correctos
+				button_count=0;									//se trata de una pulsación buena
 				*button_int=0;
 				return 1;
 			}
@@ -126,7 +127,6 @@ int debouncer(volatile uint8_t* button_int, uint8_t button_count, int counter, G
 	}
 	return 0;
 }
-
 
 // Lectura de datos analógicos mediante DMA para el potenciómetro de control y el sensor de nivel
 
@@ -299,9 +299,15 @@ int main(void)
   HAL_ADC_Start_DMA(&hadc2, adcbuffer_nivel, 2);
 
   HAL_TIM_PWM_Start(&htim9, TIM_CHANNEL_2);
+
+  HAL_Delay(500);
   lcd_init ();
+  HAL_Delay(1000);
   lcd_send_cmd(0x80 || 0x00);
+  HAL_Delay(1000);
   lcd_send_string("PRUEBA");
+
+  HAL_Delay(1000);
 
   /* USER CODE END 2 */
 
@@ -315,19 +321,19 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
 	//Cambio de modo (1-automático 2-manual)
-	 if((mode != 2) && flag_cambio /*debouncer(&flag_cambio, button_count_cambio, counter_cambio, GPIOE, GPIO_PIN_2)*/){
+	 if((mode != 2) && !debouncer(&flag_cambio, GPIOE, GPIO_PIN_2)){
 		 flag_cambio = 0;
 		 mode = (mode + 1) % 2;
 	 }
 	 //Desarme del modo de alerta
-	 if(flag_rearme /*debouncer(&flag_rearme, button_count_rearme, counter_rearme, GPIOE, GPIO_PIN_4)*/){
+	 if(!debouncer(&flag_rearme, GPIOE, GPIO_PIN_4)){
 		 flag_rearme = 0;
 		 //if(mando de la esclusa totalmente cerrado){
 		 	  mode = 1;
 	  	 //}
 	  }
 	  //Armado del modo de alerta PREFERENTE POR ORDEN IMPORTANTE
-	  if(flag_alerta /*debouncer(&flag_alerta, button_count_alerta, counter_alerta, GPIOE, GPIO_PIN_3)*/){
+	  if(!debouncer(&flag_alerta, GPIOE, GPIO_PIN_3)){
 		  flag_alerta = 0;
 		  mode = 2;
 	  }
@@ -553,7 +559,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.ClockSpeed = 50000;
   hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
